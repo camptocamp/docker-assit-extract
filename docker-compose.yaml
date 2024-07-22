@@ -1,5 +1,19 @@
 networks:
     qnetwork:
+    database:
+        driver: bridge
+    web:
+        driver: bridge
+    queue:
+        driver: bridge
+
+volumes:
+    database:
+        driver: local
+    fmeflow:
+        driver: local
+    sslcerts:
+        driver: local
 
 services:
 
@@ -145,3 +159,199 @@ services:
         networks:
             - qnetwork
             - default
+
+    # FME
+    # To disable HTTPS, start with ENV vars WEBPROTOCOL=http EXTERNALPORT=80 and comment port 80 out in the nginx section.
+    # Custom HTTPS certificate: Start with ENV var SSLCERTLOCATION=/local/path/to/ssslcert
+
+    fmeflowdb:
+        image: postgres:16.1-bullseye
+        environment:
+            - POSTGRES_PASSWORD=pgadmin
+        volumes:
+            - 'database:/var/lib/postgresql/data'
+        restart: always
+        networks:
+            - database
+        healthcheck:
+            test: pg_isready --host fmeflowdb -U fmeflow || exit 1
+            interval: 10s
+            timeout: 5s
+            retries: 6
+
+    fmeflowcore:
+        image: 'docker.io/safesoftware/fmeflow-core:24612'
+        environment:
+            - PRIMARY_PROCESS=core
+            - EXTERNALHOSTNAME=${EXTERNALHOSTNAME:-localhost}
+            - EXTERNALPORT=${EXTERNALPORT:-443}
+            - WEBPROTOCOL=${WEBPROTOCOL:-https}
+            - RUNSETUP=true
+            - DEBUGLEVEL=NONE
+        volumes:
+            - 'fmeflow:/data/fmeflowdata'
+        hostname: fmeflowcore
+        restart: always
+        healthcheck:
+            test: nc -z fmeflowcore 7071 || exit 1
+            interval: 10s
+            timeout: 1s
+            retries: 6
+        depends_on:
+            - fmeflowdb
+            - fmeflowqueue
+            - fmeflowdbinit
+        networks:
+            - database
+            - web
+            - queue
+
+    fmeflowdbinit:
+        image: 'docker.io/safesoftware/fmeflow-core:24612'
+        networks:
+            - database
+        restart: "no"
+        depends_on:
+            - fmeflowdb
+        environment:
+            - PRIMARY_PROCESS=initpgsql
+            - PGSQLADMINPASSWORD=pgadmin
+
+    fmeflowwebsocket:
+        image: 'docker.io/safesoftware/fmeflow-core:24612'
+        environment:
+            - PRIMARY_PROCESS=websocket
+        volumes:
+            - 'fmeflow:/data/fmeflowdata'
+        hostname: fmeflowwebsocket
+        restart: always
+        healthcheck:
+            test: nc -z fmeflowwebsocket 7078 || exit 1
+            interval: 10s
+            timeout: 1s
+            retries: 6
+        networks:
+            - web
+
+    fmeflowqueue:
+        image: 'docker.io/safesoftware/fmeflow-queue:24612'
+        volumes:
+            - 'fmeflow:/data/fmeflowdata'
+        hostname: fmeflowqueue
+        restart: always
+        healthcheck:
+            test: redis-cli -a sozPpbLfgdI9WJoPejNMpSxGw -h fmeflowqueue ping || exit 1
+            interval: 5s
+            timeout: 1s
+            retries: 5
+        networks:
+            - queue
+            - web
+
+    nginx:
+        image: 'docker.io/safesoftware/fmeflow-nginx-proxy:24612'
+        environment:
+            - EXTERNALHOSTNAME=${EXTERNALHOSTNAME:-localhost}
+            - EXTERNALPORT=${EXTERNALPORT:-443}
+            - WEBPROTOCOL=${WEBPROTOCOL:-https}
+            - NGINX_WORKER_PROCESSES=${NGINX_WORKER_PROCESSES:-1}
+        ports:
+            - '${EXTERNALPORT:-443}:8443'
+            # HTTP to HTTPS port, enable if protocol is https and redirect is requested
+            - 80:8080
+        restart: always
+        healthcheck:
+            test: wget --quiet --tries=1 --spider http://nginx:8080/healthz || exit 1
+            interval: 10s
+            timeout: 5s
+            retries: 6
+        networks:
+            - web
+        volumes:
+            - '${SSLCERTLOCATION:-sslcerts}:/etc/ssl/private'
+        depends_on:
+            - fmeflowweb
+            - fmeflowwebsocket
+            - fmeflowcore
+
+    fmeflowweb:
+        image: 'docker.io/safesoftware/fmeflow-web:24612'
+        volumes:
+            - 'fmeflow:/data/fmeflowdata'
+        environment:
+            - EXTERNALHOSTNAME=${EXTERNALHOSTNAME:-localhost}
+            - EXTERNALPORT=${EXTERNALPORT:-443}
+            - WEBPROTOCOL=${WEBPROTOCOL:-https}
+            - DEBUGLEVEL=NONE
+        hostname: fmeflowweb
+        restart: always
+        healthcheck:
+            test: wget --quiet --tries=1 --spider http://fmeflowweb:8080/ || exit 1
+            interval: 10s
+            timeout: 5s
+            retries: 6
+        depends_on:
+            - fmeflowcore
+        networks:
+            - web
+            - database
+
+    fmeflowutilityengine:
+        image: 'docker.io/safesoftware/fmeflow-engine:24612'
+        volumes:
+            - 'fmeflow:/data/fmeflowdata'
+        restart: always
+        depends_on:
+            - fmeflowcore
+        environment:
+            - EXTERNALPORT=${EXTERNALPORT:-443}
+            - WEBPROTOCOL=${WEBPROTOCOL:-https}
+            - DEBUGLEVEL=NONE
+            - ENGINETYPE=UTILITY
+        # This is to prevent sick engines from generating too many core dump files. Remove this if you would like to enable core dumps by the engine
+        ulimits:
+            core:
+                hard: 0
+                soft: 0
+        networks:
+            - database
+            - web
+
+    fmeflowengine:
+        image: 'docker.io/safesoftware/fmeflow-engine:24612'
+        volumes:
+            - 'fmeflow:/data/fmeflowdata'
+        restart: always
+        depends_on:
+            - fmeflowcore
+        environment:
+            - EXTERNALPORT=${EXTERNALPORT:-443}
+            - WEBPROTOCOL=${WEBPROTOCOL:-https}
+            - DEBUGLEVEL=NONE
+        # This is to prevent sick engines from generating too many core dump files. Remove this if you would like to enable core dumps by the engine
+        ulimits:
+            core:
+                hard: 0
+                soft: 0
+        networks:
+            - database
+            - web
+
+  # --- Uncomment to deploy CPU-Usage Engines with FME Server ---
+
+  # fmeflowenginedynamic:
+  #   image: 'docker.io/safesoftware/fmeflow-engine:24612'
+  #   volumes:
+  #      - 'fmeflow:/data/fmeflowdata'
+  #   restart: always
+  #   depends_on:
+  #     - fmeflowcore
+  #   environment:
+  #     - EXTERNALHOSTNAME=${EXTERNALHOSTNAME:-localhost}
+  #     - EXTERNALPORT=${EXTERNALPORT:-443}
+  #     - WEBPROTOCOL=${WEBPROTOCOL:-https}
+  #     - ENGINETYPE=DYNAMIC
+  #   networks:
+  #     - database
+  #     - web
+  # -------------------------------------------------------------
