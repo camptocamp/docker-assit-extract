@@ -7,16 +7,16 @@ volumes:
 services:
 
     # Frontend
-    frontend: 
+    frontend:
       build: ./frontend
       depends_on:
           geoshop:
               condition: service_healthy
           extract:
-              condition: service_healthy              
+              condition: service_healthy
       environment:
-        - FRONTEND_HOST=localhost
-        - FRONTEND_PORT=8080
+        - FRONTEND_HOST=${FRONTEND_HOST:-localhost}
+        - FRONTEND_PORT=${FRONTEND_PORT:-8080}
         - GEOSHOP_BACKEND=http://geoshop:8000
         - EXTRACT_FRONTEND=http://extract:8080
       volumes:
@@ -24,19 +24,19 @@ services:
       ports:
         - "8080:80"
 
-    # Extract 
+    # Extract
     extract:
         build: ./extract
         depends_on:
             pgsql:
                 condition: service_healthy
             geodata:
-                condition: service_healthy                
-        environment: 
-            - JAVA_OPTS=-Xms1G -Xmx2G 
-              -Dspring.datasource.url="jdbc:postgresql://pgsql:5432/extract" 
-              -Dspring.datasource.username=extractuser 
-              -Dspring.datasource.password=demopassword 
+                condition: service_healthy
+        environment:
+            - JAVA_OPTS=-Xms1G -Xmx2G
+              -Dspring.datasource.url="jdbc:postgresql://pgsql:5432/extract"
+              -Dspring.datasource.username=extractuser
+              -Dspring.datasource.password=demopassword
               -Duser.language=en -Duser.region=CH -Dcom.sun.jndi.ldap.connect.pool.timeout=20000
             - GEODATA_POSTGRES_HOST=geodata
             - GEODATA_POSTGRES_DB=geodata
@@ -97,7 +97,7 @@ services:
     # Geoshop
     geoshop:
         build: ./geoshop
-        depends_on: 
+        depends_on:
             postgis:
                 condition: service_healthy
         environment:
@@ -111,7 +111,7 @@ services:
             test: curl --fail http://localhost:8000 || exit 1
             interval: 10s
             timeout: 10s
-            retries: 15       
+            retries: 15
 
     # Geoshop/Postgis
     postgis:
@@ -187,3 +187,27 @@ services:
         networks:
             - qnetwork
             - default
+
+    test:
+        profiles: [testing]
+        build: ./tests
+        networks:
+            - default
+        depends_on:
+            selenium:
+                condition: service_healthy
+            frontend:
+                condition: service_started
+
+    selenium:
+        profiles: [testing]
+        image: selenium/standalone-firefox
+        networks:
+            - default
+        ports:
+            - 4444:4444
+        healthcheck:
+            test: curl --fail http://localhost:4444/ || exit 1
+            interval: 10s
+            timeout: 10s
+            retries: 15
