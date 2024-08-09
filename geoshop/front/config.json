@@ -1,0 +1,70 @@
+{
+  "apiUrl": "http://geoshop:8000/",
+  "mediaUrl": "",
+  "baseMapUrl": "https://wmts.geo.admin.ch/1.0.0/{layer}/{style}/current/{TileMatrixSet}/{TileMatrix}/{TileCol}/{TileRow}",
+  "geocoderUrl": "https://nominatim.openstreetmap.org/search",
+  "geocoderLayers": [
+    "adresses_sitn", "nom_local_lieu_dit", "search_cours_eau",
+    "batiments_ofs", "axe_rue", "ImmeublesCanton", "communes", "cadastres",
+    "recenter_to"
+  ],
+  "contact": {
+    "phone": {
+      "label": "",
+      "number": ""
+    },
+    "email": "info@geogr.ch"
+  },
+  "initialCenter": [
+    2765505.527577451, 1173931.8492200195
+  ],
+  "initialExtent": [
+    2420000, 1030000, 2900000, 1360000
+  ],
+  "resolutions": [250, 100, 50, 20, 10, 5, 2.5, 2, 1.5, 1, 0.5],
+  "epsg": "EPSG:2056",
+  "basemaps": [
+    {
+      "id": "ch.swisstopo.pixelkarte-farbe",
+      "label": "Landeskarten (farbig)",
+      "description": "Landeskarten (farbig)",
+      "thumbUrl": "assets/images/planville.png",
+      "matrixSet": "2056",
+      "format": "jpeg"
+    },{
+      "id": "ch.swisstopo.pixelkarte-grau",
+      "label": "Karte Grau",
+      "description": "Karte Grau",
+      "thumbUrl": "assets/images/cadastre.png",
+      "matrixSet": "2056",
+      "format": "jpeg"
+    }
+  ],
+  "pageformats": [
+    {
+      "name": "A4",
+      "width": 210,
+      "height": 297
+    },
+    {
+      "name": "A3",
+      "width": 297,
+      "height": 420
+    },
+    {
+      "name": "A2",
+      "width": 420,
+      "height": 594
+    },
+    {
+      "name": "A1",
+      "width": 594,
+      "height": 841
+    },
+    {
+      "name": "A0",
+      "width": 841,
+      "height": 1189
+    }
+  ]
+}

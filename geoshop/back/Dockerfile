@@ -11,9 +11,10 @@ RUN apt update && \
     cd /geoshop/geoshop-back && \
     pip3 install -r requirements.txt --break-system-packages
 
+# FIXME: Add this through the containder od the composition
 COPY .env /geoshop/geoshop-back/.env
 COPY settings.py /geoshop/geoshop-back/settings.py
-COPY sampledata.sql /geoshop/sampledata.sql
+COPY resource/sampledata.sql /geoshop/sampledata.sql
 COPY entrypoint.sh /geoshop/entrypoint.sh
 
 ENTRYPOINT [ "/geoshop/entrypoint.sh" ]

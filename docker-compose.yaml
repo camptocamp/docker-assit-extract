@@ -96,7 +96,7 @@ services:
 
     # Geoshop
     geoshop:
-        build: ./geoshop
+        build: ./geoshop/back
         depends_on: 
             postgis:
                 condition: service_healthy
@@ -112,6 +112,13 @@ services:
             interval: 10s
             timeout: 10s
             retries: 15       
+
+    # Geoshop Front End
+    geoshop_fe:
+        build: ./geoshop/front
+        depends_on:
+            geoshop:
+                condition: service_healthy
 
     # Geoshop/Postgis
     postgis:
